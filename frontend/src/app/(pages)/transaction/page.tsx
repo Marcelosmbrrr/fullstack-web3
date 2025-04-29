@@ -102,14 +102,19 @@ export default function Transaction() {
         throw new Error("No transactions found.");
       }
 
-      const txs = data.result.map((tx: any) => ({
-        hash: tx.hash,
-        from: tx.from,
-        to: tx.to,
-        value: tx.value,
-        timestamp: parseInt(tx.timeStamp),
-        isIncoming: tx.to.toLowerCase() === account.address?.toLowerCase(),
-      }));
+      const txs = data.result
+        .filter(
+          (tx: any) => tx.from.toLowerCase() === account.address?.toLowerCase()
+        )
+        .map((tx: any) => ({
+          hash: tx.hash,
+          from: tx.from,
+          to: tx.to,
+          value: tx.value,
+          timestamp: parseInt(tx.timeStamp),
+          isIncoming: tx.to.toLowerCase() === account.address?.toLowerCase(),
+        }));
+
       setTransactions(txs);
     } catch (error) {
       console.error("Failed to fetch transactions:", error);

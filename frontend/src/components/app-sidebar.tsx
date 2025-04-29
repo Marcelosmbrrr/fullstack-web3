@@ -2,11 +2,10 @@
 
 import * as React from "react";
 import {
-  IconDashboard,
-  IconDatabase,
-  IconFileWord,
-  IconInnerShadowTop,
-  IconReport,
+  IconCode,
+  IconCurrencyEthereum,
+  IconSend,
+  IconWallet,
 } from "@tabler/icons-react";
 
 import { NavDapps } from "@/components/nav-dapps";
@@ -30,39 +29,44 @@ const data = {
     {
       name: "Wallet Scan",
       url: "/",
-      icon: IconDashboard,
+      icon: IconWallet,
     },
     {
       name: "Transaction",
       url: "transaction",
-      icon: IconDashboard,
+      icon: IconSend,
     },
     {
       name: "Smart Contract",
       url: "smart-contract",
-      icon: IconDashboard,
+      icon: IconCode,
     },
   ],
   dapps: [
     {
-      name: "Lottery",
-      url: "#",
-      icon: IconDatabase,
-    },
-    {
       name: "Swap",
       url: "#",
-      icon: IconReport,
+      icon: IconCode,
+    },
+    {
+      name: "Lock",
+      url: "#",
+      icon: IconCode,
+    },
+    {
+      name: "Lottery",
+      url: "#",
+      icon: IconCode,
     },
     {
       name: "Create ERC-20",
       url: "#",
-      icon: IconFileWord,
+      icon: IconCode,
     },
     {
       name: "Create ERC-721",
       url: "#",
-      icon: IconFileWord,
+      icon: IconCode,
     },
   ],
 };
@@ -78,7 +82,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <a href="#">
-                <IconInnerShadowTop className="!size-5" />
+                <IconCurrencyEthereum className="!size-5" />
                 <span className="text-base font-semibold">Learning Web3</span>
               </a>
             </SidebarMenuButton>
