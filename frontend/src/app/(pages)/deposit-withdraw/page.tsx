@@ -7,7 +7,7 @@ import {
   useWriteContract,
   useWatchContractEvent,
   useAccount,
-  useSimulateContract,
+  useWaitForTransactionReceipt,
 } from "wagmi";
 
 import DepositWithdrawABI from "@/contracts/DepositWithdrawABI.json";
@@ -18,6 +18,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { formatEther, parseEther } from "viem";
+import { LoaderIcon } from "lucide-react";
 
 const CONTRACT_ADDRESS = "0xD6D47F2f14869560B5c9BA15878ec622c6Cc1e31";
 
@@ -32,7 +33,7 @@ export default function SmartContract() {
     functionName: "getContractBalance",
   });
 
-   // Read user balance
+  // Read user balance
   const { data: userBalance, error } = useReadContract({
     abi: DepositWithdrawABI,
     address: CONTRACT_ADDRESS,
@@ -44,29 +45,28 @@ export default function SmartContract() {
     console.error("Error fetching user balance:", error);
   }
 
-  // Configure contract write for deposit
-  const { writeContract: deposit } = useWriteContract({
-    mutation: {
-      onSuccess: () => {
-        window.alert("Deposit initialized...");
-        setDepositAmount("");
-      },
-      onError: (error) => {
-        window.alert(error.message);
-      },
-    },
+  // Write deposit
+  const {
+    writeContract: deposit,
+    isPending: isDepositPending,
+    data: depositHash,
+  } = useWriteContract();
+
+  // Write withdraw
+  const {
+    writeContract: withdraw,
+    isPending: isWithdrawPending,
+    data: withdrawHash,
+  } = useWriteContract();
+
+  // Get deposit transaction processing status
+  const { isLoading: isDepositConfirming } = useWaitForTransactionReceipt({
+    hash: depositHash,
   });
 
-  // Configure contract write for withdrawal
-  const { writeContract: withdraw } = useWriteContract({
-    mutation: {
-      onSuccess: () => {
-        window.alert("Withdrawal initialized...");
-      },
-      onError: (error) => {
-        window.alert(error.message);
-      },
-    },
+   // Get withdraw transaction processing status
+  const { isLoading: isWithdrawConfirming } = useWaitForTransactionReceipt({
+    hash: withdrawHash,
   });
 
   // Watch deposit events
@@ -143,10 +143,38 @@ export default function SmartContract() {
                   placeholder="0.1"
                 />
               </div>
-              <Button onClick={handleDeposit} className="mr-2">
-                Deposit
+              <Button
+                onClick={handleDeposit}
+                disabled={
+                  isDepositPending ||
+                  isDepositConfirming ||
+                  isWithdrawPending ||
+                  isWithdrawConfirming
+                }
+                className="mr-2"
+              >
+                {isDepositPending
+                  ? "Sending..."
+                  : isDepositConfirming
+                  ? "Processing..."
+                  : "Deposit"}
               </Button>
-              <Button onClick={handleWithdraw}>Withdraw All</Button>
+
+              <Button
+                onClick={handleWithdraw}
+                disabled={
+                  isDepositPending ||
+                  isDepositConfirming ||
+                  isWithdrawPending ||
+                  isWithdrawConfirming
+                }
+              >
+                {isWithdrawPending
+                  ? "Sending..."
+                  : isWithdrawConfirming
+                  ? "Processing..."
+                  : "Withdraw"}
+              </Button>
             </div>
           </div>
 
@@ -165,8 +193,9 @@ export default function SmartContract() {
                 <p className="text-sm">
                   <span className="text-muted-foreground">Total Balance: </span>
                   {contractBalance
-                    ? `${Number(contractBalance) / 1e18} ETH`
-                    : "0 ETH"}
+                    ? `${formatEther(contractBalance)}`
+                    : "0"}{" "}
+                  ETH
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   DepositWithdraw Contract - Manages ETH deposits and

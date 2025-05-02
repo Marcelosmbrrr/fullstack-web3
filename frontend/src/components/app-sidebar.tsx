@@ -46,7 +46,7 @@ const data = {
     },
     {
       name: "Lottery",
-      url: "#",
+      url: "lottery",
       icon: IconCode,
     },
     {
