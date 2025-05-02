@@ -1,63 +1,58 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   useReadContract,
   useWriteContract,
   useWatchContractEvent,
+  useAccount,
+  useSimulateContract,
 } from "wagmi";
-import { useState } from "react";
-import HelloWorldABI from "@/contracts/HelloWorldABI.json";
+
+import DepositWithdrawABI from "@/contracts/DepositWithdrawABI.json";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { formatEther, parseEther } from "viem";
 
-import { toast } from "sonner";
-
-const CONTRACT_ADDRESS = "";
+const CONTRACT_ADDRESS = "0xD6D47F2f14869560B5c9BA15878ec622c6Cc1e31";
 
 export default function SmartContract() {
+  const account = useAccount();
   const [depositAmount, setDepositAmount] = useState("");
 
   // Read contract balance
   const { data: contractBalance } = useReadContract({
-    abi: HelloWorldABI,
+    abi: DepositWithdrawABI,
     address: CONTRACT_ADDRESS,
     functionName: "getContractBalance",
   });
 
-  // Read user balance
-  const { data: userBalance } = useReadContract({
-    abi: HelloWorldABI,
+   // Read user balance
+  const { data: userBalance, error } = useReadContract({
+    abi: DepositWithdrawABI,
     address: CONTRACT_ADDRESS,
-    functionName: "balances",
-    args: [],
+    functionName: "getDepositedAmount",
+    account: account.address,
   });
+
+  if (error) {
+    console.error("Error fetching user balance:", error);
+  }
 
   // Configure contract write for deposit
   const { writeContract: deposit } = useWriteContract({
     mutation: {
       onSuccess: () => {
-        toast({
-          title: "Deposit successful",
-          description: "Your deposit has been processed successfully",
-        });
+        window.alert("Deposit initialized...");
         setDepositAmount("");
       },
       onError: (error) => {
-        toast({
-          title: "Deposit error",
-          description: error.message,
-          variant: "destructive",
-        });
+        window.alert(error.message);
       },
     },
   });
@@ -66,24 +61,17 @@ export default function SmartContract() {
   const { writeContract: withdraw } = useWriteContract({
     mutation: {
       onSuccess: () => {
-        toast({
-          title: "Withdrawal successful",
-          description: "Your withdrawal has been processed successfully",
-        });
+        window.alert("Withdrawal initialized...");
       },
       onError: (error) => {
-        toast({
-          title: "Withdrawal error",
-          description: error.message,
-          variant: "destructive",
-        });
+        window.alert(error.message);
       },
     },
   });
 
   // Watch deposit events
   useWatchContractEvent({
-    abi: HelloWorldABI,
+    abi: DepositWithdrawABI,
     address: CONTRACT_ADDRESS,
     eventName: "Deposit",
     onLogs(logs) {
@@ -93,7 +81,7 @@ export default function SmartContract() {
 
   // Watch withdrawal events
   useWatchContractEvent({
-    abi: HelloWorldABI,
+    abi: DepositWithdrawABI,
     address: CONTRACT_ADDRESS,
     eventName: "Withdrawal",
     onLogs(logs) {
@@ -103,25 +91,21 @@ export default function SmartContract() {
 
   const handleDeposit = () => {
     if (!depositAmount || isNaN(Number(depositAmount))) {
-      toast({
-        title: "Invalid amount",
-        description: "Please enter a valid deposit amount",
-        variant: "destructive",
-      });
+      window.alert("Invalid amount");
       return;
     }
 
     deposit({
-      abi: HelloWorldABI,
+      abi: DepositWithdrawABI,
       address: CONTRACT_ADDRESS,
       functionName: "deposit",
-      value: BigInt(Number(depositAmount) * 1e18), // Convert to wei
+      value: parseEther(depositAmount),
     });
   };
 
   const handleWithdraw = () => {
     withdraw({
-      abi: HelloWorldABI,
+      abi: DepositWithdrawABI,
       address: CONTRACT_ADDRESS,
       functionName: "withdraw",
     });
@@ -129,7 +113,7 @@ export default function SmartContract() {
 
   return (
     <div className="container max-w-2xl">
-      <h1 className="text-3xl font-bold mb-6">Smart Contract</h1>
+      <h1 className="text-3xl font-bold mb-6">Deposit and Withdraw</h1>
 
       <Card className="w-full">
         <CardHeader className="text-center">
@@ -139,7 +123,7 @@ export default function SmartContract() {
           {/* Deposited Balance */}
           <div className="text-center mb-8">
             <p className="text-5xl font-bold">
-              {userBalance ? `${Number(userBalance) / 1e18} ETH` : "0 ETH"}
+              {userBalance ? `${formatEther(userBalance)}` : "0"} ETH
             </p>
             <p className="text-sm text-muted-foreground mt-2">
               Available balance for withdrawal
@@ -182,10 +166,11 @@ export default function SmartContract() {
                   <span className="text-muted-foreground">Total Balance: </span>
                   {contractBalance
                     ? `${Number(contractBalance) / 1e18} ETH`
-                    : "Loading..."}
+                    : "0 ETH"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  HelloWorld Contract - Manages ETH deposits and withdrawals
+                  DepositWithdraw Contract - Manages ETH deposits and
+                  withdrawals
                 </p>
               </>
             )}

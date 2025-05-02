@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import {
   IconCode,
   IconCurrencyEthereum,
@@ -36,21 +37,11 @@ const data = {
       url: "transaction",
       icon: IconSend,
     },
-    {
-      name: "Smart Contract",
-      url: "smart-contract",
-      icon: IconCode,
-    },
   ],
   dapps: [
     {
-      name: "Swap",
-      url: "#",
-      icon: IconCode,
-    },
-    {
-      name: "Lock",
-      url: "#",
+      name: "Deposit/Withdraw",
+      url: "deposit-withdraw",
       icon: IconCode,
     },
     {
