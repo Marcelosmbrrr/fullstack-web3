@@ -32,9 +32,8 @@ contract DepositWithdraw {
         emit Withdrawal(amount, msg.sender);
     }
 
-    function getDepositedAmount(address user) public view returns (uint256) {
-        require(user == msg.sender, "Unauthorized");
-        return balances[user];
+    function getDepositedAmount() public view returns (uint256) {
+        return balances[msg.sender]; 
     }
 
     function getContractBalance() public view returns (uint256) {

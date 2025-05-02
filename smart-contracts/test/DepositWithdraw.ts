@@ -344,10 +344,9 @@ describe("DepositWithdraw", function () {
       );
 
       const depositedAmount =
-        await depositWithdrawAsOtherAccount.read.getDepositedAmount(
-          [account2.account.address],
-          { account: account2.account.address }
-        );
+        await depositWithdrawAsOtherAccount.read.getDepositedAmount({
+          account: account2.account.address,
+        });
 
       expect(depositedAmount).to.equal(0n);
     });
@@ -359,22 +358,21 @@ describe("DepositWithdraw", function () {
 
       const depositAmount = parseEther("1");
 
-      const otherAccountContractConnection = await hre.viem.getContractAt(
+      const depositWithdrawAsOtherAccount = await hre.viem.getContractAt(
         "DepositWithdraw",
         contractInstance.address,
         { client: { wallet: account2 } }
       );
 
-      const hash = await otherAccountContractConnection.write.deposit({
+      const hash = await depositWithdrawAsOtherAccount.write.deposit({
         value: depositAmount,
       });
       await publicClient.waitForTransactionReceipt({ hash });
 
       const depositedAmount =
-        await otherAccountContractConnection.read.getDepositedAmount(
-          [account2.account.address],
-          { account: account2.account.address }
-        );
+        await depositWithdrawAsOtherAccount.read.getDepositedAmount({
+          account: account2.account.address,
+        });
 
       expect(depositedAmount).to.equal(depositAmount);
     });
@@ -403,10 +401,9 @@ describe("DepositWithdraw", function () {
       await publicClient.waitForTransactionReceipt({ hash: withdrawHash });
 
       const depositedAmount =
-        await depositWithdrawAsOtherAccount.read.getDepositedAmount(
-          [account2.account.address],
-          { account: account2.account.address }
-        );
+        await depositWithdrawAsOtherAccount.read.getDepositedAmount({
+          account: account2.account.address,
+        });
 
       // Check deposited amount is zero
       expect(depositedAmount).to.equal(0n);
