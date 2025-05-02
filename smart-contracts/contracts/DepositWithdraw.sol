@@ -1,41 +1,43 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.28;
+pragma solidity ^0.8.26;
 
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
 
-contract HelloWorld {
+contract DepositWithdraw {
 
     address payable public owner;
-    mapping(address => uint) public balances;
+    mapping (address => uint256) public balances;
 
     event Deposit(uint amount, address from);
-    event Withdrawal(uint amount, address to, uint when);
+    event Withdrawal(uint amount, address to);
 
     constructor() payable {
         owner = payable(msg.sender);
     }
 
     function deposit() public payable {
-        require(msg.value > 0, "Deposit must be greater than zero");
-
+        require(msg.value != 0, "Must be greater than zero");
         balances[msg.sender] += msg.value;
-
         emit Deposit(msg.value, msg.sender);
     }
 
     function withdraw() public {
         uint amount = balances[msg.sender];
-        require(amount > 0, "You have no funds to withdraw");
+        require(amount != 0, "No funds");
 
-        balances[msg.sender] = 0;
-
+        delete balances[msg.sender];
         payable(msg.sender).transfer(amount);
 
-        emit Withdrawal(amount, msg.sender, block.timestamp);
+        emit Withdrawal(amount, msg.sender);
     }
 
-    function getContractBalance() public view returns (uint) {
+    function getDepositedAmount(address user) public view returns (uint256) {
+        require(user == msg.sender, "Unauthorized");
+        return balances[user];
+    }
+
+    function getContractBalance() public view returns (uint256) {
         return address(this).balance;
     }
 }
