@@ -50,6 +50,11 @@ const data = {
       icon: IconCode,
     },
     {
+      name: "Swap",
+      url: "swap",
+      icon: IconCode,
+    },
+    {
       name: "Create ERC-20",
       url: "#",
       icon: IconCode,
