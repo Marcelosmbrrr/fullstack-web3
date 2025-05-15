@@ -24,6 +24,7 @@ contract Lottery {
         address indexed finalizerAddress,
         uint finalizer_reward
     );
+    event RoundForceReset(uint indexed round, address indexed resetBy);
 
     address public owner;
 
@@ -137,6 +138,7 @@ contract Lottery {
         uint winner_reward = total_prize - (owner_reward + initializer_reward + finalizer_reward); // 98% for winner
 
         // Winner selection
+        // Refatoração: substituir por uma função de Oracle
         uint randomIndex = uint(keccak256(abi.encodePacked(
             block.timestamp, block.prevrandao, round_participants.length
         ))) % round_participants.length;
@@ -166,6 +168,17 @@ contract Lottery {
         delete round_participants;
 
         emit NewRoundStarted(round_count, msg.sender);
+    }
+
+    function forceResetRound() external onlyOwner {
+        require(round_status == RoundStatus.RUNNING, "Round not running");
+        require(round_participants.length == 0, "Participants exist");
+        require(block.timestamp >= round_start_time + ROUND_TIME_DURATION, "24h not passed");
+        
+        round_status = RoundStatus.WAITING_NEW_ROUND;
+        last_round_end_time = block.timestamp;
+        
+        emit RoundForceReset(round_count, msg.sender);
     }
     
 }
