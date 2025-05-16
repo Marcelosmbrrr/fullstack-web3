@@ -1,138 +1,91 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-// Taxa de depósito ao invés de parte pro ganhador
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract LotteryOnDeposit {
-    uint public constant ENTRY_VALUE = 1 ether;
-    uint public constant WIN_CHANCE_DIVISOR = 100_000; // 1 em 100.000 (0.001%)
-    uint public constant OWNER_SHARE_PERCENT = 1; // 0.1% (1/1000)
-    uint public constant WINNER_SHARE_PERCENT = 995; // 99.5% (995/1000)
-    uint public constant INITIALIZER_SHARE_PERCENT = 5; // 0.5% (5/1000)
-    uint public constant MIN_PRIZE_TO_WIN = 1 ether; // Prêmio mínimo para permitir vitórias
-    uint public constant MIN_TIME_BETWEEN_DEPOSITS = 1 hours; // Tempo mínimo exigido entre depósitos
+contract AutoLottery is ReentrancyGuard, Ownable {
 
-    enum Status { RUNNING, WAITING }
-    Status public currentStatus;
+    address payable[] public participants;
+    uint256 public constant WIN_PROBABILITY = 100000; // 1 in 100,000 (0.001%)
+    uint256 public constant DEPOSIT_VALUE_REQUIRED = 1 ether;
     
-    uint public totalParticipants;
-    uint public totalPrize;
-    address public owner;
-    address public lastInitializer;
-    uint public currentWinChanceDivisor = WIN_CHANCE_DIVISOR;
+    address public lastWinner;
+    uint256 public lastPrize;
+    uint256 public participantsCountHistory; 
+    uint256 public roundsCountHistory; 
 
-    mapping(address => uint) public lastDepositTime; // Limitador de requisições
-    mapping(address => bool) public hasInitializedBefore; // Limitador de inicializadores
-
-    event NewDeposit(address indexed participant, uint amount);
-    event WinnerSelected(
-        address indexed winner,
-        uint prize,
-        uint ownerShare,
-        uint initializerShare,
-        uint totalParticipants
-    );
-    event NewRoundStarted(address indexed initializer);
-
-    constructor() {
-        owner = msg.sender;
-        currentStatus = Status.WAITING; // Starts in waiting status
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner");
-        _;
-    }
-
-    modifier onlyRunning() {
-        require(currentStatus == Status.RUNNING, "Lottery not running");
-        _;
-    }
-
-    modifier onlyWaiting() {
-        require(currentStatus == Status.WAITING, "Lottery not waiting");
-        _;
-    }
-
-    modifier neverInitializerBefore() {
-        require(!hasInitializedBefore[msg.sender], "Already initialized once");
-        _;
-    }
+    event NewDeposit(address indexed participant, uint256 amount);
+    event NewWinner(address indexed winner, uint256 prizeAmount);
+    
+    constructor() Ownable(msg.sender) {}
 
     // ============================================================== GET/VIEW FUNCTIONS 
 
-    function getCurrentWinChance() public view returns (uint) {
-        return currentWinChanceDivisor;
+    function getLotteryBalance() public view returns (uint256) {
+        return address(this).balance;
     }
 
-    // Refatorar: Chainlink VRF
-    function getRandomNumber() internal view returns (uint) {
-        return uint(keccak256(abi.encodePacked(
+    function getLastWinner() public view returns (address) {
+        return lastWinner;
+    }
+
+    function getLastPrize() public view returns (uint256) {
+        return lastPrize;
+    }
+
+    function getParticipants() public view returns (uint256) {
+        return participants.length;
+    }
+
+    function getTotalParticipantsHistory() public view returns (uint256) {
+        return participantsCountHistory;
+    }
+
+    function getTotalRoundsHistory() public view returns (uint256) {
+        return roundsCountHistory;
+    }
+
+    function generateRandomNumber() private view returns(uint256) {
+        return uint256(keccak256(abi.encodePacked(
+            block.difficulty,
             block.timestamp,
-            block.prevrandao,
-            msg.sender,
-            totalParticipants
-        ))) % currentWinChanceDivisor;
+            participants.length,
+            msg.sender
+        )));
     }
 
     // ============================================================== SET FUNCTIONS
 
-    function startNewRound() external payable onlyWaiting neverInitializerBefore {
-        require(msg.value == ENTRY_VALUE, "Exactly 1 ETH required");
-        
-        lastInitializer = msg.sender;
-        hasInitializedBefore[msg.sender] = true;
-        currentStatus = Status.RUNNING;
-        totalParticipants = 1; 
-        totalPrize = msg.value;
-        currentWinChanceDivisor = WIN_CHANCE_DIVISOR;
-        
-        emit NewRoundStarted(msg.sender);
-        emit NewDeposit(msg.sender, msg.value);
-    }
+    function deposit() external payable nonReentrant {
+        require(msg.value == DEPOSIT_VALUE_REQUIRED, "Deposit must be exactly 1 ether");
 
-    function deposit() external payable onlyRunning {
-        require(msg.value == ENTRY_VALUE, "Exactly 1 ETH required");
-        require(block.timestamp >= lastDepositTime[msg.sender] + MIN_TIME_BETWEEN_DEPOSITS, "Deposit too soon, wait 1 hour");
+        participants.push(payable(msg.sender));
+        participantsCountHistory++;
 
-        lastDepositTime[msg.sender] = block.timestamp;
-        totalPrize += msg.value;
-        totalParticipants++;
-        
         emit NewDeposit(msg.sender, msg.value);
 
-        if (totalPrize >= MIN_PRIZE_TO_WIN) {
-            uint random = getRandomNumber();
-            if (random < currentWinChanceDivisor) {
-                distributePrize();
-            }
+        uint256 randomNumber = generateRandomNumber();
+        if (randomNumber % WIN_PROBABILITY == 0) {
+            _selectWinner();
         }
     }
 
-    function distributePrize() internal {
-        uint ownerShare = (totalPrize * OWNER_SHARE_PERCENT) / 1000;
-        uint initializerShare = (totalPrize * INITIALIZER_SHARE_PERCENT) / 1000;
-        uint winnerPrize = (totalPrize * WINNER_SHARE_PERCENT) / 1000;
+    function _selectWinner() private {
+        require(participants.length > 0, "No participants");
 
-        totalPrize = 0; 
-        currentStatus = Status.WAITING;
+        uint256 winnerIndex = generateRandomNumber() % participants.length;
+        address payable winner = participants[winnerIndex];
+        uint256 prizeAmount = address(this).balance;
+        
+        lastWinner = winner;
+        lastPrize = prizeAmount;
+        roundsCountHistory++; 
+        
+        winner.transfer(prizeAmount);
+        
+        participants = new address payable[](0);
 
-        payable(msg.sender).transfer(winnerPrize);
-        payable(owner).transfer(ownerShare);
-        payable(lastInitializer).transfer(initializerShare);
-
-        emit WinnerSelected(
-            msg.sender,
-            winnerPrize,
-            ownerShare,
-            initializerShare,
-            totalParticipants
-        );
+        emit NewWinner(winner, prizeAmount);
     }
-
-    function setWinChanceDivisor(uint newDivisor) external onlyOwner {
-        require(newDivisor > 0 && newDivisor <= WIN_CHANCE_DIVISOR, "Invalid divisor");
-        currentWinChanceDivisor = newDivisor;
-    }
-
 }

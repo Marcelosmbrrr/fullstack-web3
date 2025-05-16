@@ -6,13 +6,13 @@ import {
 import hre from "hardhat";
 import { getAddress, parseEther } from "viem";
 
-describe("Lottery", function () {
+describe("SuperLottery", function () {
   async function deployLotteryFixture() {
     const [owner, account1, account2, account3, account4] =
       await hre.viem.getWalletClients();
     const publicClient = await hre.viem.getPublicClient();
 
-    const lottery = await hre.viem.deployContract("Lottery");
+    const lottery = await hre.viem.deployContract("SuperLottery");
 
     return {
       lottery,
