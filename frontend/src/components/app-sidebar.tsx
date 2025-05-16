@@ -19,6 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { CoinsIcon } from "lucide-react";
 
 const data = {
   user: {
@@ -37,6 +38,11 @@ const data = {
       url: "transaction",
       icon: IconSend,
     },
+    {
+      name: "Tokens",
+      url: "tokens",
+      icon: CoinsIcon
+    }
   ],
   dapps: [
     {
@@ -53,17 +59,7 @@ const data = {
       name: "Swap",
       url: "swap",
       icon: IconCode,
-    },
-    {
-      name: "Create ERC-20",
-      url: "#",
-      icon: IconCode,
-    },
-    {
-      name: "Create ERC-721",
-      url: "#",
-      icon: IconCode,
-    },
+    }
   ],
 };
 
