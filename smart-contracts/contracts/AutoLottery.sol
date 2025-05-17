@@ -2,39 +2,48 @@
 pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract AutoLottery is ReentrancyGuard, Ownable {
+contract AutoLottery is ReentrancyGuard {
 
     address payable[] public participants;
-    uint256 public constant WIN_PROBABILITY = 100000; // 1 in 100,000 (0.001%)
-    uint256 public constant DEPOSIT_VALUE_REQUIRED = 1 ether;
+    uint256 public constant WIN_PROBABILITY = 1; // 1 = 100% // 100000 = 0.001%
+    uint256 public constant DEPOSIT_VALUE_REQUIRED = 0.001 ether;
     
+    address public owner;
+    mapping(uint => mapping(address => bool)) public hasDeposited;
     address public lastWinner;
     uint256 public lastPrize;
     uint256 public participantsCountHistory; 
-    uint256 public roundsCountHistory; 
+    uint256 public currentRound; 
 
     event NewDeposit(address indexed participant, uint256 amount);
     event NewWinner(address indexed winner, uint256 prizeAmount);
+
+    constructor() {
+        owner = msg.sender;
+        currentRound = 1;
+    }
     
-    constructor() Ownable(msg.sender) {}
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Unauthorized");
+        _; 
+    }
 
     // ============================================================== GET/VIEW FUNCTIONS 
 
-    function getLotteryBalance() public view returns (uint256) {
+    function getCurrentRoundBalance() public view returns (uint256) {
         return address(this).balance;
     }
 
-    function getLastWinner() public view returns (address) {
+    function getLastRoundWinner() public view returns (address) {
         return lastWinner;
     }
 
-    function getLastPrize() public view returns (uint256) {
+    function getLastRoundPrize() public view returns (uint256) {
         return lastPrize;
     }
 
-    function getParticipants() public view returns (uint256) {
+    function getCurrentRoundParticipants() public view returns (uint256) {
         return participants.length;
     }
 
@@ -42,32 +51,34 @@ contract AutoLottery is ReentrancyGuard, Ownable {
         return participantsCountHistory;
     }
 
-    function getTotalRoundsHistory() public view returns (uint256) {
-        return roundsCountHistory;
+    function getCurrentRound() public view returns (uint256) {
+        return currentRound;
     }
 
-    function generateRandomNumber() private view returns(uint256) {
-        return uint256(keccak256(abi.encodePacked(
-            block.difficulty,
-            block.timestamp,
-            participants.length,
-            msg.sender
-        )));
+    function generateRandomNumber() private view returns(uint) { 
+        return uint(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, participants.length)));
     }
 
     // ============================================================== SET FUNCTIONS
 
     function deposit() external payable nonReentrant {
-        require(msg.value == DEPOSIT_VALUE_REQUIRED, "Deposit must be exactly 1 ether");
+        require(msg.value == DEPOSIT_VALUE_REQUIRED, "Deposit must be exactly 0.001 ether");
+        require(!hasDeposited[currentRound][msg.sender], "Already participating");
 
+        uint256 ownerFee = msg.value / 100;
+        uint256 remainingAmount = msg.value - ownerFee;
+
+        payable(owner).transfer(ownerFee);
+        
         participants.push(payable(msg.sender));
+        hasDeposited[currentRound][msg.sender] = true;
         participantsCountHistory++;
-
-        emit NewDeposit(msg.sender, msg.value);
 
         uint256 randomNumber = generateRandomNumber();
         if (randomNumber % WIN_PROBABILITY == 0) {
             _selectWinner();
+        } else {
+            emit NewDeposit(msg.sender, remainingAmount);
         }
     }
 
@@ -80,7 +91,7 @@ contract AutoLottery is ReentrancyGuard, Ownable {
         
         lastWinner = winner;
         lastPrize = prizeAmount;
-        roundsCountHistory++; 
+        currentRound++; 
         
         winner.transfer(prizeAmount);
         
