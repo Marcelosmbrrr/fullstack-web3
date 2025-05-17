@@ -42,7 +42,7 @@ export function SuperLottery() {
             <Separator className="my-4" />
 
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="success">Distribute Prize</Button>
+              <Button variant="success">Select Winner</Button>
               <Button variant="alert">Start New Round</Button>
             </div>
           </div>

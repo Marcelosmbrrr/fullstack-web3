@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import {
   useReadContract,
   useWriteContract,
+  useWatchContractEvent,
   useAccount,
   useWaitForTransactionReceipt,
 } from "wagmi";
@@ -186,7 +187,7 @@ export function SimpleLottery() {
                 variant="success"
                 onClick={handleSelectWinner}
                 disabled={
-                  !isOwner ||
+                  isOwner ||
                   isDepositPending ||
                   isDepositConfirming ||
                   isSelectWinnerPending ||
