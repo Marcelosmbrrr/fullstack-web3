@@ -19,7 +19,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { CoinsIcon } from "lucide-react";
 
 const data = {
   user: {
@@ -37,11 +36,6 @@ const data = {
       name: "Transaction",
       url: "transaction",
       icon: IconSend,
-    },
-    {
-      name: "Tokens",
-      url: "tokens",
-      icon: CoinsIcon
     }
   ],
   dapps: [
@@ -53,11 +47,6 @@ const data = {
     {
       name: "Lottery",
       url: "lottery",
-      icon: IconCode,
-    },
-    {
-      name: "Swap",
-      url: "swap",
       icon: IconCode,
     }
   ],

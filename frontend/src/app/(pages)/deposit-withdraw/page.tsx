@@ -18,9 +18,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { formatEther, parseEther } from "viem";
-import { LoaderIcon } from "lucide-react";
 
-const CONTRACT_ADDRESS = "0xD6D47F2f14869560B5c9BA15878ec622c6Cc1e31";
+const CONTRACT_ADDRESS = "0xf526cd29947562E70F23Df77A280073b6C768F30";
 
 export default function SmartContract() {
   const account = useAccount();
@@ -64,7 +63,7 @@ export default function SmartContract() {
     hash: depositHash,
   });
 
-   // Get withdraw transaction processing status
+  // Get withdraw transaction processing status
   const { isLoading: isWithdrawConfirming } = useWaitForTransactionReceipt({
     hash: withdrawHash,
   });
