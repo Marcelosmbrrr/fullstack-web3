@@ -50,6 +50,9 @@ contract SimpleLottery is ReentrancyGuard {
     function deposit() external payable nonReentrant {
         require(msg.value == ENTRY_FEE, "Must send exactly 0.001 ETH");
         require(!hasDeposited[currentRound][msg.sender], "Already participating");
+
+        uint256 ownerFee = msg.value / 100;
+        payable(owner).transfer(ownerFee);
         
         participants.push(payable(msg.sender));
         hasDeposited[currentRound][msg.sender] = true;

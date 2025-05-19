@@ -1,44 +1,46 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-contract SuperLottery {
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract SuperLottery is ReentrancyGuard {
 
     enum RoundStatus {
-        WAITING_NEW_ROUND,
-        RUNNING
+        FINISHED,
+        STARTED
     }
 
     uint public constant ENTRY_VALUE = 1 ether; 
     uint public constant MAX_PARTICIPANTS = 1000;
-    uint public constant ROUND_TIME_DURATION = 24 hours; 
+    uint public constant ROUND_TIME_DURATION = 48 hours; 
+    uint public constant TIME_INTERVAL_FOR_INVOKE = 3 days;
     uint public constant TIME_INTERVAL_BETWEEN_ROUNDS = 1 hours;
 
-    event NewRoundStarted(uint indexed round, address indexed initializer_address);
-    event NewParticipant(address indexed participant);
-    event LotteryFull();
+    address private owner;
+
+    // Round info
+    address[] public round_participants;
+    mapping(uint => mapping(address => bool)) public has_deposited;
+    uint public round_number;
+    uint public round_created_at;
+    RoundStatus public round_status;
+    address round_initializer;
+    
+    // History info
+    uint public last_round_ended_at;
+    mapping (address=>uint) invokers_time_history;
+    uint last_round_prize;
+
+    event RoundStarted(uint indexed round, address indexed initializer);
+    event NewDeposit(uint indexed round, address indexed depositor);
     event WinnerSelected(
         address indexed winner,
         uint prize,
-        address indexed initializer_address,
-        uint initializerReward,
-        address indexed finalizerAddress,
-        uint finalizer_reward
+        address indexed initializer,
+        uint initializer_prize,
+        address indexed finalizer,
+        uint finalizer_prize
     );
-    event RoundForceReset(uint indexed round, address indexed resetBy);
-
-    address public owner;
-
-    address[] public round_participants;
-    mapping(address => bool) public round_participants_map;
-    uint public round_count;
-    uint public round_start_time;
-    RoundStatus public round_status;
-    
-    uint public last_round_end_time;
-    address public last_round_initializer_address;
-    address public last_round_finalizer_address;
-    address public last_round_winner;
-    uint public last_round_prize;
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -46,139 +48,143 @@ contract SuperLottery {
     }
 
     modifier onlyParticipant() {
-        require(round_participants_map[msg.sender], "Not a participant");
+        require(has_deposited[round_number][msg.sender], "Must be a participant");
         _;
     }
 
     modifier uniqueParticipant() {
-        require(!round_participants_map[msg.sender], "Already participating");
+        require(!has_deposited[round_number][msg.sender], "Already participating");
         _;
     }
 
-    modifier notLastRoundInitializer() {
-        require(msg.sender != last_round_initializer_address, "Cant repeat initializer");
+    modifier avoidSameInvoker() {
+        require(
+            block.timestamp >= invokers_time_history[msg.sender] + TIME_INTERVAL_FOR_INVOKE,
+            "Wait 1 week to invoke again"
+        );
         _;
     }
 
-    modifier notLastRoundFinalizer() {
-        require(msg.sender != last_round_finalizer_address, "Cant repeat finalizer");
-        _;
-    }
-
-    constructor() {
+    constructor() payable {
         owner = msg.sender;
     }
 
     // ============================================================== GET/VIEW FUNCTIONS 
 
-    function getCurrentRoundParticipantsCount() external view returns (uint) {
+    function getCurrentRoundBalance() public view returns (uint256) {
+        return address(this).balance;
+    }
+
+    function getCurrentRoundParticipantsCount() public view returns (uint) {
         return round_participants.length;
     }
 
-    function getTimeLeftToCloseCurrentRound() external view returns (uint) {
-        if (block.timestamp >= round_start_time + ROUND_TIME_DURATION) return 0;
-        return (round_start_time + ROUND_TIME_DURATION) - block.timestamp;
+    function getHasRoundStarted() public view returns (bool) {
+        return round_status == RoundStatus.STARTED;
     }
 
-    function getIsRoundRunning() public view returns (bool) {
-        return round_status == RoundStatus.RUNNING;
+    function getTimeLeftToCurrentRoundEnd() public view returns (uint) {
+        if (block.timestamp >= (round_created_at + ROUND_TIME_DURATION)) {
+            return 0;
+        }
+        return (round_created_at + ROUND_TIME_DURATION) - block.timestamp;
     }
 
-    function getTimeLeftToAllowNewRound() public view returns (uint) {
-        require(round_status == RoundStatus.WAITING_NEW_ROUND, "Current round not completed");
+    function getTimeLeftToStartNewRound() public view returns (uint) {
+        require(round_status == RoundStatus.FINISHED, "Round is running");
 
-        if (block.timestamp >= last_round_end_time + TIME_INTERVAL_BETWEEN_ROUNDS) {
+        if (block.timestamp >= (last_round_ended_at + TIME_INTERVAL_BETWEEN_ROUNDS)) {
             return 0;
         }
 
-        return (last_round_end_time + TIME_INTERVAL_BETWEEN_ROUNDS) - block.timestamp;
+        return (last_round_ended_at + TIME_INTERVAL_BETWEEN_ROUNDS) - block.timestamp;
     }
 
-    function getLastRoundWinner() external view returns (address) {
-        return last_round_winner;
+    function getIsAddressParticipating(address value) public view returns (bool) {
+        return has_deposited[round_number][value];
     }
 
-    function getLastRoundPrize() external view returns (uint) {
+    function getCanAddressInvoke() public view returns (bool) {
+        return block.timestamp >= invokers_time_history[msg.sender] + TIME_INTERVAL_FOR_INVOKE;
+    }
+
+    function getLastRoundPrize() public view returns (uint) {
         return last_round_prize;
-    }
-
-    function getLastRoundInitializer() external view returns (address) {
-        return last_round_initializer_address;
-    }
-
-    function getLastRoundFinalizer() external view returns (address) {
-        return last_round_finalizer_address;
-    }    
+    }   
 
     // ============================================================== SET FUNCTIONS
 
-    function deposit() external payable uniqueParticipant {
-        require(round_status == RoundStatus.RUNNING, "Round not running");
-        require(msg.value == ENTRY_VALUE, "Exactly 1 MON required");
+    function deposit() external payable uniqueParticipant nonReentrant {
+        require(round_status == RoundStatus.STARTED, "Round not started");
+        require(msg.value == ENTRY_VALUE, "Exactly 1 ETH required");
         require(round_participants.length < MAX_PARTICIPANTS, "Round is full");
+
+        uint256 owner_fee = msg.value / 100;
+        payable(owner).transfer(owner_fee);
         
         round_participants.push(msg.sender);
-        round_participants_map[msg.sender] = true;
-        emit NewParticipant(msg.sender);
+        has_deposited[round_number][msg.sender] = true;
 
-        if (round_participants.length == MAX_PARTICIPANTS) {
-            emit LotteryFull();
-        }
+        emit NewDeposit(round_number, msg.sender);
     }
 
-    function selectWinner() external notLastRoundInitializer notLastRoundFinalizer {
-        require(block.timestamp >= round_start_time + ROUND_TIME_DURATION, "24h not passed");
+    function selectWinner() external avoidSameInvoker nonReentrant {
+        require(block.timestamp >= (round_created_at + ROUND_TIME_DURATION), "Round time has not ended");
         require(round_participants.length > 0, "No participants");
 
         uint total_prize = address(this).balance;
-        
-        uint owner_reward = total_prize / 100;           // 1% for owner
-        uint initializer_reward = total_prize / 1000;      // 0.1% for initializer address
-        uint finalizer_reward = total_prize / 1000;       // 0.1% for finalizing address
-        uint winner_reward = total_prize - (owner_reward + initializer_reward + finalizer_reward); // 98% for winner
+        uint initializer_prize = total_prize / 1000;      
+        uint finalizer_prize = total_prize / 1000;      
+        uint initial_amount_for_next_round = total_prize / 1000; 
+        uint winner_reward = total_prize - (initializer_prize + finalizer_prize + initial_amount_for_next_round); 
 
-        // Winner selection
-        // Refatoração: substituir por uma função de Oracle
-        uint randomIndex = uint(keccak256(abi.encodePacked(
+        // Substituir por Chainlink VRF
+        uint random_index = uint(keccak256(abi.encodePacked(
             block.timestamp, block.prevrandao, round_participants.length
         ))) % round_participants.length;
 
-        last_round_winner = round_participants[randomIndex];
-        last_round_finalizer_address = msg.sender;
+        address winner = round_participants[random_index];
         
-        // MON transfers
-        payable(last_round_winner).transfer(winner_reward);
-        payable(owner).transfer(owner_reward);
-        payable(last_round_initializer_address).transfer(initializer_reward);
-        payable(last_round_finalizer_address).transfer(finalizer_reward); 
+        payable(winner).transfer(winner_reward); // 99.7%
+        payable(round_initializer).transfer(initializer_prize);
+        payable(msg.sender).transfer(finalizer_prize); 
         
-        round_status = RoundStatus.WAITING_NEW_ROUND;
+        round_status = RoundStatus.FINISHED;
+        invokers_time_history[msg.sender] = block.timestamp;
+        last_round_ended_at = block.timestamp;
+        last_round_prize = winner_reward;
         
-        emit WinnerSelected(last_round_winner, winner_reward, last_round_initializer_address, initializer_reward, last_round_finalizer_address, finalizer_reward);
+        emit WinnerSelected(
+            winner,
+            winner_reward,
+            round_initializer,
+            initializer_prize,
+            msg.sender,
+            finalizer_prize
+        );
     }
 
-    function startNextRound() external notLastRoundInitializer notLastRoundFinalizer {
-        require(round_status == RoundStatus.WAITING_NEW_ROUND, "Current round not completed");
-        require(block.timestamp >= last_round_end_time + TIME_INTERVAL_BETWEEN_ROUNDS, "Time interval not passed");
+    function startNextRound() external avoidSameInvoker nonReentrant {
+        require(round_status == RoundStatus.FINISHED, "Round is running");
+        require(block.timestamp >= (last_round_ended_at + TIME_INTERVAL_BETWEEN_ROUNDS), "Time interval not passed");
 
-        round_start_time = block.timestamp;
-        round_status = RoundStatus.RUNNING;
-        last_round_initializer_address = msg.sender;
-        round_count++;
+        invokers_time_history[msg.sender] = block.timestamp;
+        round_initializer = msg.sender;
+        round_created_at = block.timestamp;
+        round_status = RoundStatus.STARTED;
         delete round_participants;
+        round_number++;
 
-        emit NewRoundStarted(round_count, msg.sender);
+        emit RoundStarted(round_number, msg.sender);
     }
 
-    function forceResetRound() external onlyOwner {
-        require(round_status == RoundStatus.RUNNING, "Round not running");
-        require(round_participants.length == 0, "Participants exist");
-        require(block.timestamp >= round_start_time + ROUND_TIME_DURATION, "24h not passed");
-        
-        round_status = RoundStatus.WAITING_NEW_ROUND;
-        last_round_end_time = block.timestamp;
-        
-        emit RoundForceReset(round_count, msg.sender);
+    receive() external payable {
+        revert("Use deposit function");
     }
+
+    fallback() external payable {
+        revert("Invalid call");
+    }
+
     
 }
